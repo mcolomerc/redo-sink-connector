@@ -50,5 +50,4 @@ Connector JAR:
 ## Deploy Connect
 
 `CONNECT_PLUGIN_PATH: "/usr/share/java,/usr/share/confluent-hub-components"`
-
-alias gitu="docker run -ti --rm -v - ${HOME}/.gitconfig:/etc/.gitconfig -v ${HOME}/.ssh:/root/.ssh -v $(pwd):/git alpine/git"
+ 
