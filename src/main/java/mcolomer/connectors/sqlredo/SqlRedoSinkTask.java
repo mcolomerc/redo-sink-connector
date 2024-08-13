@@ -1,5 +1,6 @@
 package mcolomer.connectors.sqlredo;
 
+import mcolomer.connectors.sqlredo.audit.SinkAuditHandler;
 import mcolomer.connectors.sqlredo.config.SqlRedoSinkConnectorConfig;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.sink.SinkRecord;
@@ -10,6 +11,7 @@ import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.sink.ErrantRecordReporter;
 
 import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.util.Collection;
 import java.util.Map;
 
@@ -25,10 +27,13 @@ public class SqlRedoSinkTask extends SinkTask {
 
     OracleJDBCWriter dbSink;
 
+    SinkAuditHandler audit;
+
     @Override
     public void start(final Map<String, String> props) {
         log.info("Starting SqlRedoSinkTask  ");
         config = new SqlRedoSinkConnectorConfig(props);
+        audit = new SinkAuditHandler();
         try {
             initWriter();
         } catch (NoSuchMethodError | NoClassDefFoundError e) {
@@ -61,14 +66,15 @@ public class SqlRedoSinkTask extends SinkTask {
                 recordsCount, first.topic(), first.kafkaPartition(), first.kafkaOffset()
         );
         try {
-            log.debug( "writer.write(records)" );
             for (SinkRecord record : records) {
                 log.info(":: " + record.value());
                 Struct val = (Struct) record.value();
                 String statement = (String) val.get("SQL_REDO");
                 log.info(":: " + statement);
                 dbSink.executeSQL(statement);
+                audit.auditSinkRecord(record, new Timestamp(System.currentTimeMillis()));
             }
+            audit.flushAudit();
         } catch (SQLException ex) {
                 log.error (ex.toString());
         } catch (Exception tace) {
