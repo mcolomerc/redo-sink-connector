@@ -38,6 +38,23 @@ Reads SQL_REDO field from the `redo-log-topic` messages by the [Oracle CDC Sourc
 }
 ```
 
+## Audit Table
+
+Create the table on the destination database: 
+
+`CREATE TABLE ReplAudit (operation VARCHAR(100), tableName VARCHAR(100), sourceTs TIMESTAMP, destTs TIMESTAMP, latency NUMBER(10));`
+
+The sink connector will insert one Audit record per operation:
+
+Example:
+
+Operation Table             Source TS               Destination TS          Latency
+INSERT	CUSTOMERS_ORDERS	2024-08-13 17:00:44.000	2024-08-13 17:00:46.262	2262
+INSERT	CUSTOMERS_ORDERS	2024-08-13 17:00:44.000	2024-08-13 17:00:46.265	2265
+INSERT	CUSTOMERS_ORDERS	2024-08-13 17:00:44.000	2024-08-13 17:00:46.268	2268
+INSERT	CUSTOMERS_ORDERS	2024-08-13 17:00:44.000	2024-08-13 17:00:46.270	2270
+
+
 ## Build
 
 Maven build:

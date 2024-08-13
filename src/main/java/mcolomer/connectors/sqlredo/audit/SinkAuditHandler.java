@@ -1,11 +1,13 @@
 package mcolomer.connectors.sqlredo.audit;
 
+import mcolomer.connectors.sqlredo.OracleJDBCWriter;
 import mcolomer.connectors.sqlredo.SqlRedoSinkTask;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.sql.SQLException;
 import java.util.Date;
 import java.sql.Timestamp;
 import java.util.LinkedList;
@@ -16,10 +18,16 @@ public class SinkAuditHandler {
     private static final Logger log = LoggerFactory.getLogger(SinkAuditHandler.class);
 
     private Queue<SinkAudit> buffer;
+    OracleJDBCWriter writer;
+    public static final String TABLE = "ReplAudit";
+
+    private static final String CREATE_TABLE = "CREATE TABLE " + TABLE
+            + " (operation VARCHAR(100), tableName VARCHAR(100), sourceTs TIMESTAMP, destTs TIMESTAMP, latency NUMBER(10))";
 
 
-    public SinkAuditHandler() {
+    public SinkAuditHandler(OracleJDBCWriter writer) {
         buffer = new LinkedList<>();
+        this.writer = writer;
     }
 
     public synchronized void auditSinkRecord (SinkRecord record, Timestamp ts) {
@@ -28,8 +36,10 @@ public class SinkAuditHandler {
     }
 
     public void flushAudit() {
-        while (buffer.isEmpty()) {
+
+        while (!buffer.isEmpty()) {
             try {
+                log.info ("Write Audit");
                 writeSinkAudit(pollSinkAudit());
             } catch (InterruptedException e) {
                 e.printStackTrace();
@@ -51,22 +61,26 @@ public class SinkAuditHandler {
         return buffer.poll(); // Retrieves and removes the head of this queue
     }
 
-    private void writeSinkAudit (SinkAudit audit) {
-        try {
-            SinkAudit adtRecord = pollSinkAudit();
+    private void writeSinkAudit (SinkAudit adtRecord) {
             log.info ("Audit Record " + adtRecord);
-        } catch (InterruptedException e) {
+            log.info ("Audit Record " + adtRecord.toSQLInsert());
+            // Producer topic / Database
+        try {
+            writer.executeSQL(adtRecord.toSQLInsert());
+        } catch (SQLException e) {
+            log.error ("flushAudit >> Check Table exists >> " + CREATE_TABLE);
             e.printStackTrace();
         }
     }
 
     public SinkAudit build(SinkRecord record, Timestamp destinationTs) {
       Struct val = (Struct) record.value();
-      String statement = (String) val.get("SQL_REDO");
+      String operation = (String) val.get("OPERATION");
+      String tableName = (String) val.get("TABLE_NAME");
       Date ts = (Date) val.get("TIMESTAMP");
       Timestamp sourceTs = new Timestamp(ts.getTime());
-      long millisecondsDiff = sourceTs.getTime() - destinationTs.getTime();
-      return new SinkAudit(statement,sourceTs, destinationTs,millisecondsDiff);
+      long millisecondsDiff = destinationTs.getTime() - sourceTs.getTime();
+      return new SinkAudit(operation,tableName, sourceTs, destinationTs,millisecondsDiff);
   }
 
 

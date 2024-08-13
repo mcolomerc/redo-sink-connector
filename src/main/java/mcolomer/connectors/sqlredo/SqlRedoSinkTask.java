@@ -33,9 +33,10 @@ public class SqlRedoSinkTask extends SinkTask {
     public void start(final Map<String, String> props) {
         log.info("Starting SqlRedoSinkTask  ");
         config = new SqlRedoSinkConnectorConfig(props);
-        audit = new SinkAuditHandler();
+
         try {
             initWriter();
+            audit = new SinkAuditHandler(dbSink);
         } catch (NoSuchMethodError | NoClassDefFoundError e) {
             // Will occur in Connect runtimes earlier than 2.6
             reporter = null;
@@ -74,7 +75,7 @@ public class SqlRedoSinkTask extends SinkTask {
                 dbSink.executeSQL(statement);
                 audit.auditSinkRecord(record, new Timestamp(System.currentTimeMillis()));
             }
-            audit.flushAudit();
+
         } catch (SQLException ex) {
                 log.error (ex.toString());
         } catch (Exception tace) {
@@ -100,11 +101,10 @@ public class SqlRedoSinkTask extends SinkTask {
         }
     }
 
-
-
     @Override
     public void flush(Map<TopicPartition, OffsetAndMetadata> map) {
-        // Not necessary
+        log.info ("Flush ");
+        audit.flushAudit();
     }
 
     public void stop() {
